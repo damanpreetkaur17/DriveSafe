@@ -61,7 +61,7 @@ export default function Navbar() {
               href="#demo"
               className="group flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#05070B] transition-all duration-300 hover:bg-white/90"
             >
-              Try Demo
+              Login
 
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#05070B]/10 transition-transform duration-300 group-hover:translate-x-0.5">
                 →

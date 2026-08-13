@@ -327,28 +327,8 @@ export default function Footer() {
       </div>
 
 
-      {/* ====================================================== */}
-      {/* LARGE BACKGROUND WORD                                  */}
-      {/* ====================================================== */}
+      
 
-      <div
-        style={{
-          fontFamily: "'Orbitron', sans-serif",
-        }}
-        className="
-          pointer-events-none
-          mt-8
-          select-none
-          text-center
-          text-[16vw]
-          font-black
-          leading-[0.7]
-          tracking-[-0.08em]
-          text-white/[0.018]
-        "
-      >
-        DRIVESAFE
-      </div>
 
     </footer>
   );
