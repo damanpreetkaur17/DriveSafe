@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
@@ -17,7 +18,7 @@ export default function Navbar() {
           <div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-r from-white/[0.04] via-transparent to-white/[0.03]" />
 
           {/* Logo */}
-          <a
+          <Link
             href="/"
             className="group relative z-10 flex items-center gap-3"
           >
@@ -36,7 +37,7 @@ export default function Navbar() {
                 AI DRIVER MONITORING
               </span>
             </div>
-          </a>
+          </Link>
 
           {/* Desktop Navigation */}
           <div className="relative z-10 hidden items-center gap-8 lg:flex">
@@ -57,8 +58,8 @@ export default function Navbar() {
 
           {/* Desktop CTA */}
           <div className="relative z-10 hidden lg:block">
-            <a
-              href="#demo"
+            <Link
+              href="/login"
               className="group flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-[#05070B] transition-all duration-300 hover:bg-white/90"
             >
               Login
@@ -66,7 +67,7 @@ export default function Navbar() {
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#05070B]/10 transition-transform duration-300 group-hover:translate-x-0.5">
                 →
               </span>
-            </a>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -110,13 +111,13 @@ export default function Navbar() {
                 Benefits
               </MobileNavLink>
 
-              <a
+              <Link
                 href="#demo"
                 onClick={() => setMenuOpen(false)}
                 className="mt-4 rounded-full bg-white px-5 py-3 text-center text-sm font-medium text-[#05070B]"
               >
                 Try Demo
-              </a>
+              </Link>
 
             </div>
           </div>
