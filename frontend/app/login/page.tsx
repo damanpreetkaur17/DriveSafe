@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleButton from "@/components/GoogleButton";
@@ -8,11 +9,15 @@ import GoogleButton from "@/components/GoogleButton";
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const router = useRouter();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // no backend yet — hand this off to your teammate
+    // Frontend-only: redirect to dashboard on any login attempt
     console.log("login:", form);
+
+    // Use Next.js router for navigation
+    router.push("/dashboard");
   }
 
   return (
