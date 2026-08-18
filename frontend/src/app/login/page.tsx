@@ -1,23 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleButton from "@/components/GoogleButton";
 
 export default function LoginPage() {
-  const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "" });
   const router = useRouter();
+  const { login, googleSignIn, isAuthenticated } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ email: "", password: "" });
 
-  function handleSubmit(e: React.FormEvent) {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, router]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Frontend-only: redirect to dashboard on any login attempt
-    console.log("login:", form);
+    setError("");
+    setIsLoading(true);
 
-    // Use Next.js router for navigation
-    router.push("/dashboard");
+    try {
+      await login(form.email, form.password);
+      router.push("/complete-profile");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleLogin(credential: string) {
+    setError("");
+    setIsGoogleLoading(true);
+
+    try {
+      await googleSignIn("Google User", "", credential);
+      router.push("/complete-profile");
+    } catch (err: any) {
+      setError(err.message || "Google sign-in failed");
+    } finally {
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -36,7 +68,7 @@ export default function LoginPage() {
       </p>
 
       <div className="mt-8">
-        <GoogleButton label="Continue with Google" />
+        <GoogleButton label={isGoogleLoading ? "Connecting..." : "Continue with Google"} onSuccess={handleGoogleLogin} disabled={isGoogleLoading} />
       </div>
 
       <div className="my-6 flex items-center gap-4">
@@ -46,6 +78,12 @@ export default function LoginPage() {
         </span>
         <span className="h-px flex-1 bg-[#1C232E]" />
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
@@ -94,9 +132,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#05070A] transition-colors hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          disabled={isLoading}
+          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#05070A] transition-colors hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Sign in
+          {isLoading ? "Signing in..." : "Sign in"}
         </button>
       </form>
     </AuthLayout>
