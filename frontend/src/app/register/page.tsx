@@ -1,18 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleButton from "@/components/GoogleButton";
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const { signup, googleSignIn, isAuthenticated } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ username: "", email: "", password: "" });
 
-  function handleSubmit(e: React.FormEvent) {
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    }
+  }, [isAuthenticated, router]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // no backend yet — hand this off to your teammate
-    console.log("register:", form);
+    setError("");
+    setIsLoading(true);
+
+    try {
+      await signup(form.username, form.email, form.password);
+      router.push("/complete-profile");
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleSignup(credential: string) {
+    setError("");
+    setIsGoogleLoading(true);
+
+    try {
+      await googleSignIn("Google User", "", credential);
+      router.push("/complete-profile");
+    } catch (err: any) {
+      setError(err.message || "Google sign-in failed");
+    } finally {
+      setIsGoogleLoading(false);
+    }
   }
 
   return (
@@ -31,7 +68,7 @@ export default function RegisterPage() {
       </p>
 
       <div className="mt-8">
-        <GoogleButton label="Continue with Google" />
+        <GoogleButton label={isGoogleLoading ? "Connecting..." : "Continue with Google"} onSuccess={handleGoogleSignup} disabled={isGoogleLoading} />
       </div>
 
       <div className="my-6 flex items-center gap-4">
@@ -42,18 +79,24 @@ export default function RegisterPage() {
         <span className="h-px flex-1 bg-[#1C232E]" />
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label htmlFor="name" className="mb-2 block text-xs font-medium tracking-wide text-[#8A94A6]">
-            Full name
+          <label htmlFor="username" className="mb-2 block text-xs font-medium tracking-wide text-[#8A94A6]">
+            Username
           </label>
           <input
-            id="name"
+            id="username"
             type="text"
             required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Enter your full name"
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+            placeholder="Choose a username"
             className="w-full rounded-lg border border-[#1C232E] bg-[#05070A] px-4 py-3 text-sm text-[#E8EDF2] placeholder:text-[#4A5361] outline-none transition-colors focus:border-white/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           />
         </div>
@@ -82,7 +125,7 @@ export default function RegisterPage() {
               id="password"
               type={showPassword ? "text" : "password"}
               required
-              minLength={8}
+              minLength={6}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Create a password"
@@ -96,14 +139,15 @@ export default function RegisterPage() {
               {showPassword ? "HIDE" : "SHOW"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-[#5B6472]">Use at least 8 characters.</p>
+          <p className="mt-2 text-xs text-[#5B6472]">Use at least 6 characters.</p>
         </div>
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#05070A] transition-colors hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          disabled={isLoading}
+          className="w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-[#05070A] transition-colors hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Create account
+          {isLoading ? "Creating account..." : "Create account"}
         </button>
       </form>
 
