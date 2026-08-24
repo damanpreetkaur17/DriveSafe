@@ -127,10 +127,10 @@ export default function CompleteProfilePage() {
       }
 
       setSuccess(true);
-      
-      // Redirect to dashboard after 1 second
+
+      // Redirect to profile page after setup is saved
       setTimeout(() => {
-        router.push("/dashboard");
+        router.push("/dashboard/profile");
       }, 1000);
     } catch (err: any) {
       setError(err.message || "Failed to complete profile setup");

@@ -57,10 +57,10 @@ const createProfile = async (req, res) => {
     const { full_name, phone, date_of_birth, gender, address, username } = req.body;
 
     // Validation
-    if (!full_name) {
+    if (!full_name || !phone) {
       return res.status(400).json({
         success: false,
-        message: "Full name is required"
+        message: "Full name and phone number are required"
       });
     }
 
@@ -100,7 +100,7 @@ const createProfile = async (req, res) => {
       data: {
         user_id: userId,
         full_name,
-        phone: phone || null,
+        phone: phone.trim(),
         date_of_birth: date_of_birth ? new Date(date_of_birth) : null,
         gender: gender || null,
         address: address || null
@@ -130,17 +130,16 @@ const updateProfile = async (req, res) => {
     const userId = req.userId;
     const { full_name, phone, date_of_birth, gender, address, username } = req.body;
 
-    // Check if profile exists
+    if (!full_name || !full_name.trim() || !phone || !phone.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Full name and phone number are required"
+      });
+    }
+
     const profile = await prisma.profile.findUnique({
       where: { user_id: userId }
     });
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found"
-      });
-    }
 
     // Update username if provided
     if (username && username.trim()) {
@@ -161,30 +160,64 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    // Update profile
-    const updatedProfile = await prisma.profile.update({
-      where: { user_id: userId },
-      data: {
-        full_name: full_name || profile.full_name,
-        phone: phone !== undefined ? phone : profile.phone,
-        date_of_birth: date_of_birth ? new Date(date_of_birth) : profile.date_of_birth,
-        gender: gender !== undefined ? gender : profile.gender,
-        address: address !== undefined ? address : profile.address
-      },
-      include: {
-        user: {
-          select: {
-            username: true,
-            email: true
+    const profileData = {
+      full_name: full_name.trim(),
+      phone: phone.trim(),
+      gender: gender !== undefined ? (gender.trim() || null) : (profile?.gender || null),
+      address: address !== undefined ? (address.trim() || null) : (profile?.address || null)
+    };
+
+    if (date_of_birth !== undefined) {
+      if (!date_of_birth) {
+        profileData.date_of_birth = null;
+      } else {
+        const parsedDate = new Date(date_of_birth);
+        if (Number.isNaN(parsedDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: "Date of birth must be a valid date"
+          });
+        }
+        profileData.date_of_birth = parsedDate;
+      }
+    }
+
+    const savedProfile = profile
+      ? await prisma.profile.update({
+        where: { user_id: userId },
+        data: profileData,
+        include: {
+          user: {
+            select: {
+              username: true,
+              email: true
+            }
           }
         }
-      }
-    });
+      })
+      : await prisma.profile.create({
+        data: {
+          user_id: userId,
+          ...profileData
+        },
+        include: {
+          user: {
+            select: {
+              username: true,
+              email: true
+            }
+          }
+        }
+      });
 
     return res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
-      data: updatedProfile
+      message: profile ? "Profile updated successfully" : "Profile created successfully",
+      data: {
+        ...savedProfile,
+        username: savedProfile.user.username,
+        email: savedProfile.user.email
+      }
     });
   } catch (error) {
     console.error("Update profile error:", error);

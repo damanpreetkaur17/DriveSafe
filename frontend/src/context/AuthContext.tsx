@@ -9,6 +9,7 @@ interface User {
   email: string;
   created_at?: string;
   updated_at?: string;
+  profile_completed?: boolean;
 }
 
 interface AuthContextType {
@@ -16,8 +17,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   signup: (username: string, email: string, password: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
-  googleSignIn: (displayName?: string, email?: string, credential?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<boolean>;
+  googleSignIn: (displayName?: string, email?: string, credential?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -29,10 +30,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
 
   const checkAuth = async () => {
     try {
@@ -63,6 +60,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      void checkAuth();
+    });
+  }, []);
+
   const signup = async (username: string, email: string, password: string) => {
     try {
       const response = await authAPI.signup({ username, email, password });
@@ -82,7 +85,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (response.success && response.data.token) {
         saveToken(response.data.token);
         setUser(response.data);
+        return Boolean(response.data.profile_completed);
       }
+      return false;
     } catch (error) {
       console.error("Login failed:", error);
       throw error;
@@ -105,10 +110,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           username: response.data.username,
           email: response.data.email,
         };
-
         localStorage.setItem(GOOGLE_USER_KEY, JSON.stringify(googleUser));
         setUser(googleUser);
+        return Boolean(response.data.profile_completed);
       }
+      return false;
     } catch (error) {
       console.error("Google sign-in failed:", error);
       throw error;

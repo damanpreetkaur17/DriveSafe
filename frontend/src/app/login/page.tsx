@@ -29,10 +29,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(form.email, form.password);
-      router.push("/complete-profile");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+      const profileCompleted = await login(form.email, form.password);
+      router.push(profileCompleted ? "/dashboard" : "/dashboard/profile");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setIsLoading(false);
     }
@@ -43,10 +43,10 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
 
     try {
-      await googleSignIn("Google User", "", credential);
-      router.push("/complete-profile");
-    } catch (err: any) {
-      setError(err.message || "Google sign-in failed");
+      const profileCompleted = await googleSignIn("Google User", "", credential);
+      router.push(profileCompleted ? "/dashboard" : "/dashboard/profile");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
       setIsGoogleLoading(false);
     }
