@@ -19,7 +19,7 @@ export default function RegisterPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      router.push("/dashboard");
+      router.push("/dashboard/profile");
     }
   }, [isAuthenticated, router]);
 
@@ -30,9 +30,9 @@ export default function RegisterPage() {
 
     try {
       await signup(form.username, form.email, form.password);
-      router.push("/complete-profile");
-    } catch (err: any) {
-      setError(err.message || "Registration failed");
+      router.push("/dashboard/profile");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -44,9 +44,9 @@ export default function RegisterPage() {
 
     try {
       await googleSignIn("Google User", "", credential);
-      router.push("/complete-profile");
-    } catch (err: any) {
-      setError(err.message || "Google sign-in failed");
+      router.push("/dashboard/profile");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {
       setIsGoogleLoading(false);
     }

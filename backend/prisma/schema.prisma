@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,139 +7,116 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// USERS TABLE
 model User {
-  user_id               Int                    @id @default(autoincrement())
-  username              String                 @unique
-  email                 String                 @unique
-  password_hash         String
-  created_at            DateTime               @default(now())
-  updated_at            DateTime               @updatedAt
-  
-  // Relationships
-  profile               Profile?
-  vehicles              Vehicle[]
-  emergency_contacts    EmergencyContact[]
-  driving_sessions      DrivingSession[]
+  user_id            Int                @id @default(autoincrement())
+  username           String             @unique
+  email              String             @unique
+  password_hash      String
+  created_at         DateTime           @default(now())
+  updated_at         DateTime           @updatedAt
+  profile_completed  Boolean            @default(false)
+  driving_sessions   DrivingSession[]
+  emergency_contacts EmergencyContact[]
+  profile            Profile?
+  vehicles           Vehicle[]
 }
 
-// PROFILES TABLE
 model Profile {
-  user_id               Int                    @id
-  full_name             String
-  phone                 String?
-  date_of_birth         DateTime?
-  gender                String?
-  address               String?
-  created_at            DateTime               @default(now())
-  updated_at            DateTime               @updatedAt
-  
-  // Relationships
-  user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user_id       Int       @id
+  full_name     String
+  phone         String?
+  date_of_birth DateTime?
+  gender        String?
+  address       String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+  user          User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 }
 
-// VEHICLES TABLE
 model Vehicle {
-  vehicle_id            Int                    @id @default(autoincrement())
-  user_id               Int
-  registration_no       String                 @unique
-  vehicle_type          String
-  make                  String
-  model                 String
-  manufacturing_year    Int
-  created_at            DateTime               @default(now())
-  updated_at            DateTime               @updatedAt
-  
-  // Relationships
-  user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  driving_sessions      DrivingSession[]
-  
+  vehicle_id         Int              @id @default(autoincrement())
+  user_id            Int
+  registration_no    String           @unique
+  vehicle_type       String
+  make               String
+  model              String
+  manufacturing_year Int
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  driving_sessions   DrivingSession[]
+  user               User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
   @@index([user_id])
 }
 
-// EMERGENCY CONTACTS TABLE
 model EmergencyContact {
-  contact_id            Int                    @id @default(autoincrement())
-  user_id               Int
-  name                  String
-  phone                 String
-  relationship          String
-  priority              Int                    @default(1)
-  created_at            DateTime               @default(now())
-  updated_at            DateTime               @updatedAt
-  
-  // Relationships
-  user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  alerts                Alert[]
-  
+  contact_id   Int      @id @default(autoincrement())
+  user_id      Int
+  name         String
+  phone        String
+  relationship String
+  priority     Int      @default(1)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  alerts       Alert[]
+  user         User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
   @@index([user_id])
 }
 
-// DRIVING SESSIONS TABLE
 model DrivingSession {
-  session_id            Int                    @id @default(autoincrement())
-  user_id               Int
-  vehicle_id            Int
-  start_time            DateTime               @default(now())
-  end_time              DateTime?
-  status                String                 @default("ACTIVE")
-  created_at            DateTime               @default(now())
-  
-  // Relationships
-  user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  vehicle               Vehicle                @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: Cascade)
-  fatigue_events        FatigueEvent[]
-  
+  session_id     Int            @id @default(autoincrement())
+  user_id        Int
+  vehicle_id     Int
+  start_time     DateTime       @default(now())
+  end_time       DateTime?
+  status         String         @default("ACTIVE")
+  created_at     DateTime       @default(now())
+  user           User           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  vehicle        Vehicle        @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: Cascade)
+  fatigue_events FatigueEvent[]
+
   @@index([user_id])
   @@index([vehicle_id])
 }
 
-// FATIGUE EVENT TYPES TABLE
 model FatigueEventType {
-  event_type_id         Int                    @id @default(autoincrement())
-  event_name            String                 @unique
-  created_at            DateTime               @default(now())
-  
-  // Relationships
-  fatigue_events        FatigueEvent[]
+  event_type_id  Int            @id @default(autoincrement())
+  event_name     String         @unique
+  created_at     DateTime       @default(now())
+  fatigue_events FatigueEvent[]
 }
 
-// FATIGUE EVENTS TABLE
 model FatigueEvent {
-  event_id              Int                    @id @default(autoincrement())
-  session_id            Int
-  event_type_id         Int
-  confidence            Float
-  severity              String
-  timestamp             DateTime               @default(now())
-  duration              Int?
-  snapshot_url          String?
-  created_at            DateTime               @default(now())
-  
-  // Relationships
-  session               DrivingSession         @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
-  event_type            FatigueEventType       @relation(fields: [event_type_id], references: [event_type_id], onDelete: Restrict)
-  alerts                Alert[]
-  
+  event_id      Int              @id @default(autoincrement())
+  session_id    Int
+  event_type_id Int
+  confidence    Float
+  severity      String
+  timestamp     DateTime         @default(now())
+  duration      Int?
+  snapshot_url  String?
+  created_at    DateTime         @default(now())
+  alerts        Alert[]
+  event_type    FatigueEventType @relation(fields: [event_type_id], references: [event_type_id])
+  session       DrivingSession   @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
   @@index([session_id])
   @@index([event_type_id])
 }
 
-// ALERTS TABLE
 model Alert {
-  alert_id              Int                    @id @default(autoincrement())
-  event_id              Int
-  contact_id            Int?
-  alert_type            String
-  message               String
-  sent_at               DateTime?
-  status                String                 @default("PENDING")
-  created_at            DateTime               @default(now())
-  
-  // Relationships
-  event                 FatigueEvent           @relation(fields: [event_id], references: [event_id], onDelete: Cascade)
-  contact               EmergencyContact?      @relation(fields: [contact_id], references: [contact_id], onDelete: SetNull)
-  
+  alert_id   Int               @id @default(autoincrement())
+  event_id   Int
+  contact_id Int?
+  alert_type String
+  message    String
+  sent_at    DateTime?
+  status     String            @default("PENDING")
+  created_at DateTime          @default(now())
+  contact    EmergencyContact? @relation(fields: [contact_id], references: [contact_id])
+  event      FatigueEvent      @relation(fields: [event_id], references: [event_id], onDelete: Cascade)
+
   @@index([event_id])
   @@index([contact_id])
 }

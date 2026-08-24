@@ -3,6 +3,15 @@ const { OAuth2Client } = require("google-auth-library");
 const prisma = require("../config/db");
 const { generateToken } = require("../utils/generateToken");
 
+const hasCompletedProfile = async (userId) => {
+  const [profile, vehicle] = await Promise.all([
+    prisma.profile.findUnique({ where: { user_id: userId }, select: { user_id: true } }),
+    prisma.vehicle.findFirst({ where: { user_id: userId }, select: { vehicle_id: true } })
+  ]);
+
+  return Boolean(profile && vehicle);
+};
+
 /**
  * POST /api/auth/signup
  * Register a new user with username, email, and password
@@ -77,15 +86,16 @@ const signup = async (req, res) => {
     const token = generateToken(newUser.user_id);
 
     return res.status(201).json({
-      success: true,
-      message: "User registered successfully",
-      data: {
-        user_id: newUser.user_id,
-        username: newUser.username,
-        email: newUser.email,
-        token
-      }
-    });
+        success: true,
+        message: "User registered successfully",
+        data: {
+          user_id: newUser.user_id,
+          username: newUser.username,
+          email: newUser.email,
+          profile_completed: false,
+          token
+        }
+      });
   } catch (error) {
     console.error("Signup error:", error);
     return res.status(500).json({
@@ -135,6 +145,7 @@ const login = async (req, res) => {
 
     // Generate JWT token
     const token = generateToken(user.user_id);
+    const profileCompleted = await hasCompletedProfile(user.user_id);
 
     return res.status(200).json({
       success: true,
@@ -143,6 +154,7 @@ const login = async (req, res) => {
         user_id: user.user_id,
         username: user.username,
         email: user.email,
+        profile_completed: profileCompleted,
         token
       }
     });
@@ -191,7 +203,10 @@ const getMe = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: user
+      data: {
+        ...user,
+        profile_completed: await hasCompletedProfile(userId)
+      }
     });
   } catch (error) {
     console.error("Get me error:", error);
@@ -290,6 +305,7 @@ const googleLogin = async (req, res) => {
     }
 
     const token = generateToken(user.user_id);
+    const profileCompleted = await hasCompletedProfile(user.user_id);
 
     return res.status(200).json({
       success: true,
@@ -298,6 +314,7 @@ const googleLogin = async (req, res) => {
         user_id: user.user_id,
         username: user.username,
         email: user.email,
+        profile_completed: profileCompleted,
         token
       }
     });
