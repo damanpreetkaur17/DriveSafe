@@ -4,7 +4,7 @@
 seed: 42
 
 dataset:
-  root: "D:/Projects/AI ML/drowsiness-ml/dataset/Drowsiness"
+  root: "dataset/Drowsiness"
   image_size: 224
   batch_size: 64
   num_workers: 4
