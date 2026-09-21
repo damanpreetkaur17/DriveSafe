@@ -8,7 +8,8 @@ const API_URL = "/api";
  *  2. Server returned non-JSON      → "Server error (500)" etc., not a JSON parse crash
  *  3. Server returned JSON error    → uses the message field from the response body
  */
-async function apiCall(endpoint: string, options: RequestInit = {}) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = `${API_URL}${endpoint}`;
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -48,7 +49,8 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 
   // Try to parse JSON. If the server returned HTML (e.g. a 404 page from a
   // misconfigured proxy) we catch the parse error and fall back to a status-based message.
-  let data: Record<string, unknown> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any = {};
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
