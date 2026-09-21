@@ -1,11 +1,17 @@
 const API_URL = "/api";
 
 /**
- * Generic fetch wrapper with error handling
+ * Generic fetch wrapper with error handling.
+ *
+ * Handles three distinct failure modes cleanly:
+ *  1. Network error / no response   → "Unable to connect to server"
+ *  2. Server returned non-JSON      → "Server error (500)" etc., not a JSON parse crash
+ *  3. Server returned JSON error    → uses the message field from the response body
  */
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const url = `${API_URL}${endpoint}`;
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -25,25 +31,46 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
+  let response: Response;
+
   try {
-    const response = await fetch(url, {
+    response = await fetch(url, {
       ...options,
       headers,
       credentials: "include",
     });
-
-    const responseText = await response.text();
-    const data = responseText ? JSON.parse(responseText) : {};
-
-    if (!response.ok) {
-      throw new Error(data.message || "API request failed");
-    }
-
-    return data;
-  } catch (error) {
-    console.error("API Error:", error);
-    throw error;
+  } catch {
+    // Network-level failure: no server, DNS failure, CORS preflight blocked, etc.
+    throw new Error(
+      "Unable to connect to the server. Please check your connection and try again."
+    );
   }
+
+  // Try to parse JSON. If the server returned HTML (e.g. a 404 page from a
+  // misconfigured proxy) we catch the parse error and fall back to a status-based message.
+  let data: Record<string, unknown> = {};
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(`Server returned malformed JSON (${response.status}).`);
+    }
+  } else if (!response.ok) {
+    // Non-JSON error response (HTML 404 page, plain-text 500, etc.)
+    throw new Error(
+      `Server error (${response.status}). The API may be unreachable — check BACKEND_API_URL.`
+    );
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof data.message === "string" ? data.message : "Request failed";
+    throw new Error(message);
+  }
+
+  return data;
 }
 
 /**
