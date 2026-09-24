@@ -33,7 +33,6 @@ ENV/
 *.mov
 *.mkv
 *.gif
-*.wav
 *.mp3
 
 # Datasets & Archives
