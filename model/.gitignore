@@ -1,45 +1,54 @@
-# Byte-compiled / cache
+# Python / Cache
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 
-# Virtual environments
+# Virtual Environments
 .venv/
 venv/
 env/
 ENV/
 
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-.eggs/
+# Model weights & large binary files
+*.dat
+*.task
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.onnx
+*.tflite
+*.pb
+*.bin
+*.weights
+*.caffemodel
+*.pkl
+*.joblib
 
-# IDE / editor
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
+# Large Media (Video & Audio)
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.gif
+*.wav
+*.mp3
 
-# Jupyter
-.ipynb_checkpoints/
+# Datasets & Archives
+dataset/
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
-# Logs & runtime
+# Logs & Runtime Output
 logs/*.log
 runs/*
 !runs/.gitkeep
 
-# Model checkpoints (large binaries)
-models/*.pth
-models/*.pt
-models/mediapipe/
-!models/.gitkeep
-
-# Generated results (keep folder structure)
+# Generated Results (keep structure)
 results/plots/*
 !results/plots/.gitkeep
 results/confusion_matrix/*
@@ -49,15 +58,10 @@ results/metrics/*
 results/predictions/*
 !results/predictions/.gitkeep
 
-# Local secrets / env
-.env
-.env.*
-*.local
-
-# Torch / CUDA caches
-.torch/
-.cache/
-
-# OS
-desktop.ini
-dataset/
+# IDE & System Files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
