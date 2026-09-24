@@ -11,22 +11,6 @@ venv/
 env/
 ENV/
 
-# Model weights & large binary files
-*.dat
-*.task
-*.pth
-*.pt
-*.h5
-*.hdf5
-*.onnx
-*.tflite
-*.pb
-*.bin
-*.weights
-*.caffemodel
-*.pkl
-*.joblib
-
 # Large Media (Video & Audio)
 *.mp4
 *.avi
