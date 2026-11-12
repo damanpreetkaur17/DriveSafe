@@ -1,315 +1,328 @@
 "use client";
 
-import { useState } from "react";
-import DashboardShell from "@/components/dashboard/DashboardShell";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getCurrentSession, getSessionHistory, Session } from "@/lib/mockData";
-import { Clock, AlertTriangle, Activity, Calendar, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, CalendarClock, Download, LoaderCircle } from "lucide-react";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { DrivingSession, SessionSummary, sessionAPI } from "@/services/api";
 
 export default function SessionsPage() {
-  const currentSession = getCurrentSession();
-  const sessionHistory = getSessionHistory();
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [sessions, setSessions] = useState<DrivingSession[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [summary, setSummary] = useState<SessionSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    sessionAPI
+      .getAll()
+      .then(({ data }) => {
+        if (active) setSessions(data);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load sessions.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedId === null) return;
+    let active = true;
+    sessionAPI
+      .getSummary(selectedId)
+      .then(({ data }) => {
+        if (active) setSummary(data);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load session details.");
+        }
+      })
+      .finally(() => {
+        if (active) setDetailsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedId]);
+
+  const openSession = (sessionId: number) => {
+    if (sessionId === selectedId) return;
+    setSummary(null);
+    setDetailsLoading(true);
+    setErrorMessage("");
+    setSelectedId(sessionId);
+  };
 
   return (
     <DashboardShell>
-      <div className="min-h-screen p-6">
-
-        {/* Page Header */}
-        <div className="mb-6 flex items-center justify-between">
+      <main className="min-h-screen space-y-6 p-4 pt-6 sm:p-6">
+        <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1
-              style={{ fontFamily: "'Orbitron', sans-serif" }}
-              className="text-2xl font-bold tracking-tight text-white"
-            >
-              Sessions
-            </h1>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/60">
+              History and reports
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Monitoring sessions</h1>
             <p className="mt-1 text-sm text-white/50">
-              Monitor current and historical driving sessions
+              Review persisted session metrics and export a session report.
             </p>
           </div>
-
-          {/* Quick nav */}
-          <Link
-            href="/dashboard/analytics"
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/50 transition hover:border-white/20 hover:text-white"
-          >
-            <span style={{ fontFamily: "'Rajdhani', sans-serif" }} className="text-[10px] font-semibold uppercase tracking-wider">
-              Analytics
-            </span>
+          <Link href="/dashboard/live" className="text-sm text-white/65 hover:text-white">
+            Start a session
           </Link>
-        </div>
+        </header>
 
-        {/* Current Session */}
-        <div className="mb-6">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/70">
-            <div className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-50" />
-              <span className="relative h-2 w-2 rounded-full bg-green-400" />
-            </div>
-            Current Session
+        {errorMessage && (
+          <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+            {errorMessage}
+          </p>
+        )}
+
+        {loading ? (
+          <LoadingState />
+        ) : sessions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 p-10 text-center">
+            <CalendarClock className="mx-auto text-white/30" size={28} />
+            <p className="mt-3 text-sm text-white/70">No monitoring sessions yet.</p>
+            <p className="mt-1 text-xs text-white/40">
+              Start monitoring to save detection data and build your history.
+            </p>
           </div>
-
-          <SessionCard session={currentSession} current />
-        </div>
-
-        {/* Session History */}
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/70">
-            <Calendar size={16} />
-            Session History
-          </div>
-
-          <div className="space-y-3">
-            {sessionHistory.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                onClick={() => setSelectedSession(session)}
-                selected={selectedSession?.id === session.id}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Session Detail Modal/Panel */}
-        {selectedSession && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
-            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-[#05070B] p-6">
-              <div className="mb-6 flex items-start justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-white">Session Details</h2>
-                  <p className="mt-1 text-sm text-white/40">
-                    {new Date(selectedSession.startTime).toLocaleString()}
-                  </p>
+        ) : (
+          <section className="space-y-3">
+            {sessions.map((session) => (
+              <button
+                type="button"
+                key={session.session_id}
+                onClick={() => openSession(session.session_id)}
+                className="w-full rounded-xl border border-white/10 bg-[#080b10] p-4 text-left transition hover:border-white/20 sm:p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-white">
+                        Session #{session.session_id}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          session.status === "ACTIVE"
+                            ? "bg-white/5 text-white/70"
+                            : session.status === "INTERRUPTED"
+                              ? "bg-amber-500/10 text-amber-300"
+                              : "bg-white/5 text-white/50"
+                        }`}
+                      >
+                        {session.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-white/40">
+                      {new Date(session.start_time).toLocaleString()}
+                      {session.vehicle
+                        ? ` · ${session.vehicle.make} ${session.vehicle.model}`
+                        : ""}
+                    </p>
+                  </div>
+                  <span className="text-xs text-white/40">
+                    Open session details
+                  </span>
                 </div>
-                <button
-                  onClick={() => setSelectedSession(null)}
-                  className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-white/50 transition hover:bg-white/[0.05] hover:text-white"
-                >
-                  Close
-                </button>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <SessionMetric
+                    label="Duration"
+                    value={formatMilliseconds(session.duration_ms ?? 0)}
+                  />
+                  <SessionMetric
+                    label="Alerts"
+                    value={String(session.alert_count ?? 0)}
+                    icon={<AlertTriangle size={13} />}
+                  />
+                  <SessionMetric
+                    label="Avg. signal risk"
+                    value={formatScore(session.average_fatigue_score)}
+                    icon={<Activity size={13} />}
+                  />
+                  <SessionMetric
+                    label="Drowsiness / eye events"
+                    value={String(session.event_counts?.EYE_CLOSURE ?? 0)}
+                  />
+                </div>
+                <p className="mt-3 text-[11px] text-white/35">
+                  {session.event_counts?.YAWNING ?? 0} sustained yawn events ·{" "}
+                  {session._count?.detection_samples ?? 0} saved telemetry samples
+                </p>
+              </button>
+            ))}
+          </section>
+        )}
+
+        {selectedId !== null && (
+          <div
+            role="presentation"
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setSelectedId(null);
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="session-report-title"
+              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#080b10] p-5 sm:p-6"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 id="session-report-title" className="text-lg font-semibold text-white">
+                    Session #{selectedId} report
+                  </h2>
+                  {summary && (
+                    <p className="mt-1 text-xs text-white/45">
+                      {new Date(summary.session.start_time).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {summary && (
+                    <button
+                      type="button"
+                      onClick={() => exportReport(summary)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs text-white/70 hover:text-white"
+                    >
+                      <Download size={14} /> Export CSV
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSummary(null);
+                      setSelectedId(null);
+                    }}
+                    className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/60 hover:text-white"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
 
-              <SessionDetailView session={selectedSession} />
-            </div>
+              {detailsLoading ? (
+                <LoadingState />
+              ) : summary ? (
+                <>
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <SessionMetric label="Duration" value={formatMilliseconds(summary.session.duration_ms)} />
+                    <SessionMetric label="Alerts" value={String(summary.metrics.alert_count)} />
+                    <SessionMetric
+                      label="Avg. signal risk"
+                      value={formatScore(summary.metrics.average_fatigue_score)}
+                    />
+                    <SessionMetric label="Avg. EAR" value={summary.metrics.average_ear?.toFixed(3) ?? "—"} />
+                  </div>
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium text-white">Recorded events</h3>
+                    {summary.events.length === 0 ? (
+                      <p className="mt-3 text-xs text-white/40">No detection events were recorded.</p>
+                    ) : (
+                      <ul className="mt-3 divide-y divide-white/5">
+                        {summary.events.map((event) => (
+                          <li key={event.event_id} className="flex justify-between gap-3 py-3 text-xs">
+                            <span className="text-white/70">
+                              {event.alerts[0]?.message ?? event.event_type.event_name}
+                            </span>
+                            <time className="shrink-0 text-white/40">
+                              {new Date(event.timestamp).toLocaleString()}
+                            </time>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-6 text-sm text-white/50">Session summary is unavailable.</p>
+              )}
+            </section>
           </div>
         )}
-      </div>
+      </main>
     </DashboardShell>
   );
 }
 
-function SessionCard({
-  session,
-  current = false,
-  onClick,
-  selected = false,
-}: {
-  session: Session;
-  current?: boolean;
-  onClick?: () => void;
-  selected?: boolean;
-}) {
-  const duration = Math.floor(session.duration);
-  const hours = Math.floor(duration / 60);
-  const minutes = duration % 60;
-
-  return (
-    <div
-      onClick={onClick}
-      className={`rounded-xl border transition ${
-        selected
-          ? 'border-white/30 bg-white/[0.08]'
-          : 'border-white/10 bg-[#07090E] hover:border-white/20 hover:bg-[#0a0d13]'
-      } ${onClick ? 'cursor-pointer' : ''} p-5`}
-    >
-      <div className="flex items-start justify-between gap-4">
-
-        {/* Left â€” Session Info */}
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-sm font-semibold text-white">
-              {session.id}
-            </span>
-            {current && (
-              <span className="flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 text-xs font-semibold text-green-400">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-50" />
-                  <span className="relative h-1.5 w-1.5 rounded-full bg-green-400" />
-                </span>
-                LIVE
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <SessionMetric
-              icon={<Clock size={14} />}
-              label="Duration"
-              value={hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`}
-            />
-            <SessionMetric
-              icon={<Activity size={14} />}
-              label="Avg Risk"
-              value={`${session.avgFatigueRisk}%`}
-            />
-            <SessionMetric
-              icon={<TrendingUp size={14} />}
-              label="Max Risk"
-              value={`${session.maxFatigueRisk}%`}
-            />
-            <SessionMetric
-              icon={<AlertTriangle size={14} />}
-              label="Warnings"
-              value={session.warnings}
-            />
-          </div>
-
-          {/* State Distribution Bar */}
-          <div className="mt-4">
-            <div className="flex h-2 overflow-hidden rounded-full bg-white/5">
-              <div
-                className="bg-green-500"
-                style={{ width: `${session.timeAlert}%` }}
-                title={`Alert: ${session.timeAlert}%`}
-              />
-              <div
-                className="bg-amber-500"
-                style={{ width: `${session.timeDrowsy}%` }}
-                title={`Drowsy: ${session.timeDrowsy}%`}
-              />
-              <div
-                className="bg-red-500"
-                style={{ width: `${session.timeFatigued}%` }}
-                title={`Fatigued: ${session.timeFatigued}%`}
-              />
-            </div>
-            <div className="mt-2 flex gap-4 text-xs">
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
-                <span className="text-white/50">Alert {session.timeAlert}%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-amber-500" />
-                <span className="text-white/50">Drowsy {session.timeDrowsy}%</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-red-500" />
-                <span className="text-white/50">Fatigued {session.timeFatigued}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right â€” Date/Time */}
-        {!current && (
-          <div className="text-right">
-            <div className="text-xs text-white/40">
-              {new Date(session.startTime).toLocaleDateString()}
-            </div>
-            <div className="mt-1 text-xs text-white/30">
-              {new Date(session.startTime).toLocaleTimeString()}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function SessionMetric({
-  icon,
   label,
   value,
+  icon,
 }: {
-  icon: React.ReactNode;
   label: string;
-  value: string | number;
+  value: string;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div>
-      <div className="flex items-center gap-1.5 text-white/40">
+    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+      <p className="flex items-center gap-1.5 text-[11px] text-white/40">
         {icon}
-        <span className="text-[10px] uppercase tracking-wider">{label}</span>
-      </div>
-      <div className="mt-1 font-mono text-sm font-semibold text-white">{value}</div>
+        {label}
+      </p>
+      <p className="mt-1.5 text-sm font-medium text-white">{value}</p>
     </div>
   );
 }
 
-function SessionDetailView({ session }: { session: Session }) {
+function LoadingState() {
   return (
-    <div className="space-y-6">
-
-      {/* Summary Stats */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          <div className="text-xs uppercase tracking-wider text-white/40">Duration</div>
-          <div className="mt-2 font-mono text-2xl font-bold text-white">
-            {Math.floor(session.duration / 60)}h {Math.floor(session.duration % 60)}m
-          </div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          <div className="text-xs uppercase tracking-wider text-white/40">Total Warnings</div>
-          <div className="mt-2 font-mono text-2xl font-bold text-white">{session.warnings}</div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          <div className="text-xs uppercase tracking-wider text-white/40">Avg Fatigue Risk</div>
-          <div className="mt-2 font-mono text-2xl font-bold text-white">{session.avgFatigueRisk}%</div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-          <div className="text-xs uppercase tracking-wider text-white/40">Max Fatigue Risk</div>
-          <div className="mt-2 font-mono text-2xl font-bold text-white">{session.maxFatigueRisk}%</div>
-        </div>
-      </div>
-
-      {/* State Distribution */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/70">
-          State Distribution
-        </div>
-        <div className="space-y-3">
-          <StateBar label="ALERT" percentage={session.timeAlert} color="bg-green-500" />
-          <StateBar label="DROWSY" percentage={session.timeDrowsy} color="bg-amber-500" />
-          <StateBar label="FATIGUED" percentage={session.timeFatigued} color="bg-red-500" />
-        </div>
-      </div>
-
-      {/* Session Timeline Placeholder */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
-        <div className="mb-4 text-xs font-semibold uppercase tracking-wider text-white/70">
-          Session Timeline
-        </div>
-        <div className="flex h-32 items-center justify-center rounded-lg border border-white/5 bg-black/20 text-xs text-white/40">
-          Timeline visualization would appear here
-        </div>
-      </div>
+    <div className="flex min-h-32 items-center justify-center gap-2 text-sm text-white/45">
+      <LoaderCircle className="animate-spin" size={16} />
+      Loading…
     </div>
   );
 }
 
-function StateBar({
-  label,
-  percentage,
-  color,
-}: {
-  label: string;
-  percentage: number;
-  color: string;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="text-white/70">{label}</span>
-        <span className="font-mono text-white">{percentage}%</span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-white/5">
-        <div
-          className={`h-full transition-all duration-1000 ${color}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
+function formatMilliseconds(milliseconds: number) {
+  const minutes = Math.floor(milliseconds / 60000);
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
+
+function formatScore(value: number | null | undefined) {
+  return value === null || value === undefined ? "—" : `${Math.round(value)}/100`;
+}
+
+function exportReport(summary: SessionSummary) {
+  const rows = [
+    ["Metric", "Value"],
+    ["Session ID", summary.session.session_id],
+    ["Status", summary.session.status],
+    ["Start time", summary.session.start_time],
+    ["End time", summary.session.end_time ?? "In progress"],
+    ["Duration (ms)", summary.session.duration_ms],
+    ["Average signal risk", summary.metrics.average_fatigue_score ?? "—"],
+    ["Maximum signal risk", summary.metrics.maximum_fatigue_score ?? "—"],
+    ["Average EAR", summary.metrics.average_ear ?? "—"],
+    ["Alerts", summary.metrics.alert_count],
+    ...summary.events.map((event) => [
+      `Event: ${event.event_type.event_name}`,
+      `${event.timestamp} ${event.alerts[0]?.message ?? event.severity}`,
+    ]),
+  ];
+  const csv = rows
+    .map((row) =>
+      row
+        .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+        .join(",")
+    )
+    .join("\r\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `driver-monitoring-session-${summary.session.session_id}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }

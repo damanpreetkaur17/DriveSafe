@@ -43,3 +43,13 @@ Drowsy driver is alerted when he/she is not attentive. The system uses features 
 </table>
 
 We get a system where non-attention in a person is detected and is alerted using an alarm.
+
+## Integrated web monitoring service
+
+The web application uses the existing `Driver_Attention_System/face_landmarker.task`
+asset through `ml_service/main.py`. The FastAPI service accepts one JPEG frame
+at a time from the authenticated Express WebSocket bridge and returns actual
+EAR, mouth ratio, head pose, attention state, and threshold-triggered events.
+It does not persist camera frames or download the model asset automatically.
+
+See the repository-root [RUN.md](../RUN.md) for the full three-service setup.

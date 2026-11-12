@@ -1,254 +1,179 @@
 "use client";
 
-import { useState } from "react";
-import DashboardShell from "@/components/dashboard/DashboardShell";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getActiveAlert, getAlertHistory, Alert } from "@/lib/mockData";
-import { AlertTriangle, Bell, CheckCircle, Clock, Filter } from "lucide-react";
+import { AlertTriangle, Bell, CheckCircle2, LoaderCircle } from "lucide-react";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { AlertRecord, alertAPI } from "@/services/api";
 
-type FilterType = 'ALL' | 'WARNING' | 'CRITICAL' | 'ACKNOWLEDGED';
+type SeverityFilter = "ALL" | "WARNING" | "CRITICAL";
 
 export default function AlertsPage() {
-  const [filter, setFilter] = useState<FilterType>('ALL');
-  const activeAlert = getActiveAlert();
-  const alertHistory = getAlertHistory();
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [filter, setFilter] = useState<SeverityFilter>("ALL");
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const filteredAlerts = alertHistory.filter((alert) => {
-    if (filter === 'ALL') return true;
-    if (filter === 'WARNING') return alert.severity === 'WARNING';
-    if (filter === 'CRITICAL') return alert.severity === 'CRITICAL';
-    if (filter === 'ACKNOWLEDGED') return alert.acknowledged;
-    return true;
-  });
+  useEffect(() => {
+    let active = true;
+    alertAPI
+      .getAll()
+      .then(({ data }) => {
+        if (active) setAlerts(data);
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load alerts.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredAlerts = useMemo(
+    () =>
+      alerts.filter(
+        (alert) =>
+          filter === "ALL" || alert.event.severity.toUpperCase() === filter
+      ),
+    [alerts, filter]
+  );
+  const activeCount = alerts.filter((alert) => alert.status === "ACTIVE").length;
 
   return (
     <DashboardShell>
-      <div className="min-h-screen p-6">
-
-        {/* Page Header */}
-        <div className="mb-6 flex items-center justify-between">
+      <main className="min-h-screen space-y-6 p-4 pt-6 sm:p-6">
+        <header className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1
-              style={{ fontFamily: "'Orbitron', sans-serif" }}
-              className="text-2xl font-bold tracking-tight text-white"
-            >
-              Safety Alerts
-            </h1>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/60">
+              Events from model thresholds
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Alerts and events</h1>
             <p className="mt-1 text-sm text-white/50">
-              Monitor and manage driver safety events
+              Only alerts created from persisted detection events are shown.
             </p>
           </div>
-
-          {/* Quick nav */}
-          <Link
-            href="/dashboard"
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/50 transition hover:border-white/20 hover:text-white"
-          >
-            <span style={{ fontFamily: "'Rajdhani', sans-serif" }} className="text-[10px] font-semibold uppercase tracking-wider">
-              Overview
-            </span>
+          <Link href="/dashboard/sessions" className="text-sm text-white/55 hover:text-white">
+            Session history
           </Link>
-        </div>
+        </header>
 
-        {/* Active Alert Section */}
-        {activeAlert ? (
-          <div className="mb-6">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/70">
-              <Bell size={16} />
-              Active Alert
-            </div>
-            <AlertCard alert={activeAlert} active />
-          </div>
-        ) : (
-          <div className="mb-6 rounded-xl border border-white/10 bg-[#07090E] p-6">
-            <div className="flex items-center gap-3 text-sm text-white/50">
-              <CheckCircle size={20} className="text-green-400" />
-              <div>
-                <div className="font-semibold text-white/70">No Active Alerts</div>
-                <div className="mt-1 text-xs text-white/40">All systems operating normally</div>
-              </div>
-            </div>
-          </div>
+        {errorMessage && (
+          <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+            {errorMessage}
+          </p>
         )}
 
-        {/* Filters */}
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 text-sm text-white/50">
-            <Filter size={16} />
-            <span>Filter:</span>
-          </div>
-          <FilterButton
-            label="ALL"
-            active={filter === 'ALL'}
-            onClick={() => setFilter('ALL')}
-            count={alertHistory.length}
+        <section className="grid gap-3 sm:grid-cols-3">
+          <Summary label="Total alerts" value={loading ? "…" : alerts.length} />
+          <Summary label="Active" value={loading ? "…" : activeCount} warning={activeCount > 0} />
+          <Summary
+            label="Critical"
+            value={
+              loading
+                ? "…"
+                : alerts.filter((alert) => alert.event.severity.toUpperCase() === "CRITICAL").length
+            }
+            warning
           />
-          <FilterButton
-            label="WARNING"
-            active={filter === 'WARNING'}
-            onClick={() => setFilter('WARNING')}
-            count={alertHistory.filter((a) => a.severity === 'WARNING').length}
-          />
-          <FilterButton
-            label="CRITICAL"
-            active={filter === 'CRITICAL'}
-            onClick={() => setFilter('CRITICAL')}
-            count={alertHistory.filter((a) => a.severity === 'CRITICAL').length}
-          />
-          <FilterButton
-            label="ACKNOWLEDGED"
-            active={filter === 'ACKNOWLEDGED'}
-            onClick={() => setFilter('ACKNOWLEDGED')}
-            count={alertHistory.filter((a) => a.acknowledged).length}
-          />
-        </div>
+        </section>
 
-        {/* Alert History */}
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/70">
-            <Clock size={16} />
-            Alert History
-          </div>
-
-          {filteredAlerts.length > 0 ? (
-            <div className="space-y-3">
-              {filteredAlerts.map((alert) => (
-                <AlertCard key={alert.id} alert={alert} />
+        <section className="rounded-2xl border border-white/10 bg-[#080b10] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <Bell size={16} className="text-white/65" />
+              Alert history
+            </div>
+            <div className="flex gap-2">
+              {(["ALL", "WARNING", "CRITICAL"] as const).map((severity) => (
+                <button
+                  type="button"
+                  key={severity}
+                  onClick={() => setFilter(severity)}
+                  aria-pressed={filter === severity}
+                  className={`rounded-md px-3 py-1.5 text-xs ${
+                    filter === severity
+                      ? "bg-white/10 text-white"
+                      : "text-white/45 hover:text-white/80"
+                  }`}
+                >
+                  {severity}
+                </button>
               ))}
             </div>
+          </div>
+
+          {loading ? (
+            <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-white/45">
+              <LoaderCircle className="animate-spin" size={16} />
+              Loading alerts…
+            </div>
+          ) : filteredAlerts.length === 0 ? (
+            <div className="mt-5 rounded-xl border border-dashed border-white/10 p-8 text-center">
+              <CheckCircle2 className="mx-auto text-white/65" size={24} />
+              <p className="mt-3 text-sm text-white/70">No alerts to show.</p>
+              <p className="mt-1 text-xs text-white/40">
+                Events will appear here when the model detects a sustained risk signal.
+              </p>
+            </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-8 text-center">
-              <div className="text-sm text-white/40">No alerts match the selected filter</div>
+            <div className="mt-4 divide-y divide-white/5">
+              {filteredAlerts.map((alert) => (
+                <article key={alert.alert_id} className="flex gap-3 py-4">
+                  <div
+                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      alert.event.severity.toUpperCase() === "CRITICAL"
+                        ? "bg-red-500/10 text-red-300"
+                        : "bg-amber-500/10 text-amber-300"
+                    }`}
+                  >
+                    <AlertTriangle size={17} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-sm font-medium text-white">{alert.message}</h2>
+                      <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-white/55">
+                        {alert.event.severity}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-white/45">
+                      {alert.event.event_type.event_name.replaceAll("_", " ")} · Session #
+                      {alert.event.session.session_id}
+                    </p>
+                    <time className="mt-2 block text-[11px] text-white/35">
+                      {new Date(alert.event.timestamp).toLocaleString()}
+                    </time>
+                  </div>
+                  <span className="self-start text-[10px] text-white/35">{alert.status}</span>
+                </article>
+              ))}
             </div>
           )}
-        </div>
-      </div>
+        </section>
+      </main>
     </DashboardShell>
   );
 }
 
-function AlertCard({ alert, active = false }: { alert: Alert; active?: boolean }) {
-  const isCritical = alert.severity === 'CRITICAL';
-
-  return (
-    <div
-      className={`rounded-xl border p-5 transition ${
-        isCritical
-          ? 'border-red-500/30 bg-red-500/10'
-          : 'border-amber-500/30 bg-amber-500/10'
-      } ${active ? 'ring-2 ring-white/20' : ''}`}
-    >
-      <div className="flex items-start gap-4">
-        {/* Icon */}
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-            isCritical ? 'bg-red-500/20' : 'bg-amber-500/20'
-          }`}
-        >
-          <AlertTriangle
-            size={20}
-            className={isCritical ? 'text-red-400' : 'text-amber-400'}
-          />
-        </div>
-
-        {/* Content */}
-        <div className="flex-1">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h3
-                  className={`text-sm font-bold ${
-                    isCritical ? 'text-red-400' : 'text-amber-400'
-                  }`}
-                >
-                  {alert.type}
-                </h3>
-                {active && (
-                  <span className="flex items-center gap-1.5 text-xs text-white/50">
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-50" />
-                      <span className="relative h-2 w-2 rounded-full bg-red-400" />
-                    </span>
-                    ACTIVE
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-sm leading-relaxed text-white/70">{alert.message}</p>
-            </div>
-
-            {/* Severity Badge */}
-            <div
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                isCritical
-                  ? 'border-red-500/50 bg-red-500/20 text-red-300'
-                  : 'border-amber-500/50 bg-amber-500/20 text-amber-300'
-              }`}
-            >
-              {alert.severity}
-            </div>
-          </div>
-
-          {/* Metrics & Time */}
-          <div className="mt-4 flex items-center gap-6 text-xs">
-            {alert.metric && (
-              <div className="flex items-center gap-2">
-                <span className="text-white/40">Metric:</span>
-                <span className="font-mono text-white/70">{alert.metric}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Clock size={12} className="text-white/40" />
-              <span className="text-white/50">
-                {new Date(alert.timestamp).toLocaleString()}
-              </span>
-            </div>
-            {alert.acknowledged && (
-              <div className="flex items-center gap-1.5 text-green-400">
-                <CheckCircle size={12} />
-                <span>Acknowledged</span>
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          {!alert.acknowledged && (
-            <div className="mt-4 flex gap-2">
-              <button className="rounded-lg border border-white/20 bg-white/[0.05] px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/[0.08] hover:text-white">
-                Acknowledge
-              </button>
-              <button className="rounded-lg border border-white/10 px-4 py-2 text-xs font-medium text-white/50 transition hover:bg-white/[0.03] hover:text-white/70">
-                View Details
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FilterButton({
+function Summary({
   label,
-  active,
-  onClick,
-  count,
+  value,
+  warning = false,
 }: {
   label: string;
-  active: boolean;
-  onClick: () => void;
-  count: number;
+  value: number | string;
+  warning?: boolean;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className={`rounded-lg border px-4 py-2 text-xs font-medium transition ${
-        active
-          ? 'border-white/30 bg-white/[0.08] text-white'
-          : 'border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/[0.04] hover:text-white/70'
-      }`}
-    >
-      {label}
-      <span className="ml-2 opacity-50">({count})</span>
-    </button>
+    <div className="rounded-xl border border-white/10 bg-[#080b10] p-4">
+      <p className="text-xs text-white/45">{label}</p>
+      <p className={`mt-2 text-xl font-semibold ${warning ? "text-amber-300" : "text-white"}`}>
+        {value}
+      </p>
+    </div>
   );
 }

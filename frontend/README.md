@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is the Next.js frontend for the existing DriveSafe application. For the
+complete frontend, Express/Prisma backend, and Python inference-service setup,
+see the repository-root [RUN.md](../RUN.md).
 
 ## Getting Started
 

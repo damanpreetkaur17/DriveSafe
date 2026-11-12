@@ -285,8 +285,8 @@ export default function ProfilePage() {
           )}
 
           {success && (
-            <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-              <p className="text-green-400 text-sm">Profile saved successfully!</p>
+            <div className="mb-6 p-4 bg-white/5 border border-white/15 rounded-lg">
+              <p className="text-white/70 text-sm">Profile saved successfully!</p>
             </div>
           )}
 

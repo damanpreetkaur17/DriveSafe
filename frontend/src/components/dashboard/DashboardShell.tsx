@@ -38,7 +38,6 @@ export default function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter();
   const { logout, user } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -78,69 +77,10 @@ export default function DashboardShell({ children }: DashboardShellProps) {
               </div>
             </Link>
 
-            {/* System Status */}
-            <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 lg:flex">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-50" />
-                <span className="relative h-1.5 w-1.5 rounded-full bg-green-400" />
-              </span>
-              <span
-                style={{ fontFamily: "'Rajdhani', sans-serif" }}
-                className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/40"
-              >
-                AI Monitoring Active
-              </span>
-            </div>
-
-            {/* Session Info */}
-            <div className="hidden items-center gap-2 xl:flex">
-              <span className="text-[10px] font-medium tracking-wider text-white/30">
-                SESSION
-              </span>
-              <span className="font-mono text-[11px] font-medium text-white/50">
-                18:42
-              </span>
-            </div>
           </div>
 
           {/* Right â€” Actions */}
           <div className="flex items-center gap-3">
-
-            {/* Notifications */}
-            <div className="relative">
-              <button
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/50 transition hover:border-white/20 hover:text-white"
-              >
-                <Bell size={16} />
-                <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-red-500" />
-              </button>
-
-              {notificationsOpen && (
-                <div className="absolute right-0 top-12 w-80 rounded-xl border border-white/10 bg-[#05070B]/98 p-4 backdrop-blur-xl">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-white/70">
-                      Notifications
-                    </span>
-                    <span className="text-[10px] text-white/40">1 active</span>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
-                      <div className="flex items-start gap-2">
-                        <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-500">
-                          <Bell size={12} />
-                        </div>
-                        <div>
-                          <p className="text-xs text-white/70">Drowsiness detected</p>
-                          <p className="mt-0.5 text-[10px] text-white/40">1 hour ago</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Settings */}
             <Link
               href="/dashboard/settings"
@@ -255,10 +195,37 @@ export default function DashboardShell({ children }: DashboardShellProps) {
       </aside>
 
       {/* ====================================================== */}
+      {/* MOBILE NAVIGATION                                      */}
+      {/* ====================================================== */}
+
+      <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-white/10 bg-[#05070B]/95 px-1 py-2 backdrop-blur-xl lg:hidden">
+        {navigation.map((item) => {
+          const isActive = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex flex-col items-center gap-1 py-1 text-[9px] text-white/45"
+            >
+              <Icon
+                size={16}
+                strokeWidth={1.7}
+                className={isActive ? "text-white/65" : undefined}
+              />
+              <span className={isActive ? "text-white/65" : ""}>
+                {item.name.replace("LIVE MONITOR", "LIVE")}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* ====================================================== */}
       {/* MAIN CONTENT                                           */}
       {/* ====================================================== */}
 
-      <main className="pt-16 lg:pl-64">
+      <main className="pb-20 pt-16 lg:pb-0 lg:pl-64">
         {children}
       </main>
     </div>
