@@ -74,10 +74,32 @@ model DrivingSession {
   created_at     DateTime       @default(now())
   user           User           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   vehicle        Vehicle        @relation(fields: [vehicle_id], references: [vehicle_id], onDelete: Cascade)
+  detection_samples DetectionSample[]
   fatigue_events FatigueEvent[]
 
   @@index([user_id])
   @@index([vehicle_id])
+  @@index([user_id, status])
+}
+
+model DetectionSample {
+  sample_id        Int            @id @default(autoincrement())
+  session_id       Int
+  timestamp        DateTime       @default(now())
+  has_face         Boolean
+  eye_status       String
+  ear              Float?
+  yawn_detected    Boolean?
+  mouth_ratio      Float?
+  head_pitch       Float?
+  head_yaw         Float?
+  head_roll        Float?
+  attention_status String
+  drowsiness_level String
+  fatigue_score    Int?
+  session          DrivingSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+
+  @@index([session_id, timestamp])
 }
 
 model FatigueEventType {
@@ -91,7 +113,7 @@ model FatigueEvent {
   event_id      Int              @id @default(autoincrement())
   session_id    Int
   event_type_id Int
-  confidence    Float
+  confidence    Float?
   severity      String
   timestamp     DateTime         @default(now())
   duration      Int?

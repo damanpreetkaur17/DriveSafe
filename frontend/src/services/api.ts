@@ -1,5 +1,184 @@
 const API_URL = "/api";
 
+export interface ApiEnvelope<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+}
+
+export interface ApiResponse {
+  success: boolean;
+  message?: string;
+}
+
+export interface Vehicle {
+  vehicle_id: number;
+  registration_no: string;
+  vehicle_type: string;
+  make: string;
+  model: string;
+  manufacturing_year: number;
+}
+
+export interface VehicleInput {
+  registration_no: string;
+  vehicle_type: string;
+  make: string;
+  model: string;
+  manufacturing_year: number | string;
+}
+
+export interface ProfileRecord {
+  user_id: number;
+  username?: string;
+  email?: string;
+  full_name: string;
+  phone: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  address: string | null;
+}
+
+export interface EmergencyContact {
+  contact_id: number;
+  name: string;
+  phone: string;
+  relationship: string;
+  priority: number;
+}
+
+export interface EmergencyContactInput {
+  name: string;
+  phone: string;
+  relationship: string;
+  priority: number | string;
+}
+
+export interface AuthUser {
+  user_id: number;
+  username: string;
+  email: string;
+  profile_completed?: boolean;
+  token?: string;
+}
+
+export interface FatigueEventInput {
+  session_id: number;
+  event_type_id: number;
+  confidence: number;
+  severity: string;
+  timestamp?: string;
+  duration?: number;
+  snapshot_url?: string | null;
+}
+
+export interface AlertInput {
+  event_id: number;
+  contact_id?: number | null;
+  alert_type: string;
+  message: string;
+}
+
+export interface DetectionSample {
+  sample_id: number;
+  session_id: number;
+  timestamp: string;
+  has_face: boolean;
+  eye_status: string;
+  ear: number | null;
+  yawn_detected: boolean | null;
+  mouth_ratio: number | null;
+  head_pitch: number | null;
+  head_yaw: number | null;
+  head_roll: number | null;
+  attention_status: string;
+  drowsiness_level: string;
+  fatigue_score: number | null;
+}
+
+export interface SessionEvent {
+  event_id: number;
+  timestamp: string;
+  severity: string;
+  duration: number | null;
+  event_type: { event_name: string };
+  alerts: Array<{
+    alert_id: number;
+    alert_type: string;
+    message: string;
+    status: string;
+    created_at: string;
+  }>;
+}
+
+export interface DrivingSession {
+  session_id: number;
+  user_id: number;
+  vehicle_id: number;
+  start_time: string;
+  end_time: string | null;
+  status: string;
+  created_at: string;
+  duration_ms?: number;
+  vehicle?: Vehicle;
+  _count?: { fatigue_events: number; detection_samples: number };
+  average_fatigue_score?: number | null;
+  maximum_fatigue_score?: number | null;
+  alert_count?: number;
+  event_counts?: Record<string, number>;
+}
+
+export interface SessionSummary {
+  session: DrivingSession & { duration_ms: number; alert_count: number };
+  metrics: {
+    average_fatigue_score: number | null;
+    maximum_fatigue_score: number | null;
+    average_ear: number | null;
+    sample_count: number;
+    event_counts: Record<string, number>;
+    alert_count: number;
+    attention_distribution: Record<string, number>;
+  };
+  samples: DetectionSample[];
+  events: SessionEvent[];
+}
+
+export interface AlertRecord {
+  alert_id: number;
+  alert_type: string;
+  message: string;
+  status: string;
+  created_at: string;
+  event: {
+    timestamp: string;
+    severity: string;
+    event_type: { event_name: string };
+    session: { session_id: number };
+  };
+}
+
+export interface DetectionResult {
+  sessionId: string;
+  timestamp: string;
+  hasFace: boolean;
+  eyeStatus: string;
+  ear: number | null;
+  yawnDetected: boolean | null;
+  mouthRatio: number | null;
+  headPose: { pitch: number; yaw: number; roll: number } | null;
+  attentionStatus: string;
+  drowsinessLevel: string;
+  fatigueScore: number | null;
+  faceBox: { x: number; y: number; width: number; height: number } | null;
+  eyeLandmarks: number[][] | null;
+  events: Array<{
+    type: string;
+    severity: string;
+    message: string;
+    durationMs: number;
+  }>;
+}
+
 /**
  * Generic fetch wrapper with error handling.
  *
@@ -8,8 +187,10 @@ const API_URL = "/api";
  *  2. Server returned non-JSON      → "Server error (500)" etc., not a JSON parse crash
  *  3. Server returned JSON error    → uses the message field from the response body
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any> {
+async function apiCall<T = Record<string, unknown>>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
   const url = `${API_URL}${endpoint}`;
   const token =
     typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -49,8 +230,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any
 
   // Try to parse JSON. If the server returned HTML (e.g. a 404 page from a
   // misconfigured proxy) we catch the parse error and fall back to a status-based message.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let data: any = {};
+  let data: unknown = {};
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
@@ -68,11 +248,16 @@ async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any
 
   if (!response.ok) {
     const message =
-      typeof data.message === "string" ? data.message : "Request failed";
+      typeof data === "object" &&
+      data !== null &&
+      "message" in data &&
+      typeof data.message === "string"
+        ? data.message
+        : "Request failed";
     throw new Error(message);
   }
 
-  return data;
+  return data as T;
 }
 
 /**
@@ -80,42 +265,42 @@ async function apiCall(endpoint: string, options: RequestInit = {}): Promise<any
  */
 export const authAPI = {
   signup: (credentials: { username: string; email: string; password: string }) =>
-    apiCall("/auth/signup", {
+    apiCall<ApiEnvelope<AuthUser>>("/auth/signup", {
       method: "POST",
       body: JSON.stringify(credentials),
     }),
 
   login: (credentials: { email: string; password: string }) =>
-    apiCall("/auth/login", {
+    apiCall<ApiEnvelope<AuthUser>>("/auth/login", {
       method: "POST",
       body: JSON.stringify(credentials),
     }),
 
   googleLogin: (credentials: { credential?: string; email?: string; name?: string; username?: string }) =>
-    apiCall("/auth/google", {
+    apiCall<ApiEnvelope<AuthUser>>("/auth/google", {
       method: "POST",
       body: JSON.stringify(credentials),
     }),
 
-  getMe: () => apiCall("/auth/me", { method: "GET" }),
+  getMe: () => apiCall<ApiEnvelope<AuthUser>>("/auth/me", { method: "GET" }),
 
-  logout: () => apiCall("/auth/logout", { method: "POST" }),
+  logout: () => apiCall<ApiResponse>("/auth/logout", { method: "POST" }),
 };
 
 /**
  * Profile API calls
  */
 export const profileAPI = {
-  get: () => apiCall("/profile", { method: "GET" }),
+  get: () => apiCall<ApiEnvelope<ProfileRecord>>("/profile", { method: "GET" }),
 
-  create: (data: any) =>
-    apiCall("/profile", {
+  create: (data: Partial<ProfileRecord>) =>
+    apiCall<ApiEnvelope<ProfileRecord>>("/profile", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  update: (data: any) =>
-    apiCall("/profile", {
+  update: (data: Partial<ProfileRecord>) =>
+    apiCall<ApiEnvelope<ProfileRecord>>("/profile", {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -125,22 +310,23 @@ export const profileAPI = {
  * Vehicle API calls
  */
 export const vehicleAPI = {
-  getAll: () => apiCall("/vehicles", { method: "GET" }),
+  getAll: () =>
+    apiCall("/vehicles", { method: "GET" }) as Promise<ApiEnvelope<Vehicle[]>>,
 
-  create: (data: any) =>
-    apiCall("/vehicles", {
+  create: (data: VehicleInput) =>
+    apiCall<ApiEnvelope<Vehicle>>("/vehicles", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  update: (vehicleId: number, data: any) =>
-    apiCall(`/vehicles/${vehicleId}`, {
+  update: (vehicleId: number, data: Partial<VehicleInput>) =>
+    apiCall<ApiEnvelope<Vehicle>>(`/vehicles/${vehicleId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
   delete: (vehicleId: number) =>
-    apiCall(`/vehicles/${vehicleId}`, {
+    apiCall<ApiResponse>(`/vehicles/${vehicleId}`, {
       method: "DELETE",
     }),
 };
@@ -149,22 +335,25 @@ export const vehicleAPI = {
  * Emergency Contact API calls
  */
 export const emergencyContactAPI = {
-  getAll: () => apiCall("/emergency-contacts", { method: "GET" }),
+  getAll: () =>
+    apiCall<ApiEnvelope<EmergencyContact[]>>("/emergency-contacts", {
+      method: "GET",
+    }),
 
-  create: (data: any) =>
-    apiCall("/emergency-contacts", {
+  create: (data: EmergencyContactInput) =>
+    apiCall<ApiEnvelope<EmergencyContact>>("/emergency-contacts", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  update: (contactId: number, data: any) =>
-    apiCall(`/emergency-contacts/${contactId}`, {
+  update: (contactId: number, data: Partial<EmergencyContactInput>) =>
+    apiCall<ApiEnvelope<EmergencyContact>>(`/emergency-contacts/${contactId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
 
   delete: (contactId: number) =>
-    apiCall(`/emergency-contacts/${contactId}`, {
+    apiCall<ApiResponse>(`/emergency-contacts/${contactId}`, {
       method: "DELETE",
     }),
 };
@@ -177,31 +366,49 @@ export const sessionAPI = {
     apiCall("/sessions/start", {
       method: "POST",
       body: JSON.stringify({ vehicle_id: vehicleId }),
-    }),
+    }) as Promise<ApiEnvelope<DrivingSession>>,
 
   end: (sessionId: number) =>
-    apiCall(`/sessions/${sessionId}/end`, {
+    apiCall<ApiEnvelope<DrivingSession>>(`/sessions/${sessionId}/end`, {
       method: "POST",
     }),
 
-  getAll: () => apiCall("/sessions", { method: "GET" }),
+  getAll: () =>
+    apiCall("/sessions", {
+      method: "GET",
+    }) as Promise<ApiEnvelope<DrivingSession[]>>,
 
   getById: (sessionId: number) =>
-    apiCall(`/sessions/${sessionId}`, { method: "GET" }),
+    apiCall<ApiEnvelope<DrivingSession & { fatigue_events: SessionEvent[] }>>(
+      `/sessions/${sessionId}`,
+      { method: "GET" }
+    ),
+
+  getDetections: (sessionId: number, limit = 600) =>
+    apiCall(`/sessions/${sessionId}/detections?limit=${limit}`, {
+      method: "GET",
+    }) as Promise<
+      ApiEnvelope<{ samples: DetectionSample[]; events: SessionEvent[] }>
+    >,
+
+  getSummary: (sessionId: number) =>
+    apiCall(`/sessions/${sessionId}/summary`, {
+      method: "GET",
+    }) as Promise<ApiEnvelope<SessionSummary>>,
 };
 
 /**
  * Fatigue Event API calls
  */
 export const fatigueEventAPI = {
-  create: (data: any) =>
-    apiCall("/fatigue-events", {
+  create: (data: FatigueEventInput) =>
+    apiCall<ApiEnvelope<SessionEvent>>("/fatigue-events", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   getBySession: (sessionId: number) =>
-    apiCall(`/fatigue-events/session/${sessionId}`, {
+    apiCall<ApiEnvelope<SessionEvent[]>>(`/fatigue-events/session/${sessionId}`, {
       method: "GET",
     }),
 };
@@ -210,23 +417,39 @@ export const fatigueEventAPI = {
  * Alert API calls
  */
 export const alertAPI = {
-  create: (data: any) =>
-    apiCall("/alerts", {
+  create: (data: AlertInput) =>
+    apiCall<ApiEnvelope<AlertRecord>>("/alerts", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  getAll: () => apiCall("/alerts", { method: "GET" }),
+  getAll: () =>
+    apiCall("/alerts", { method: "GET" }) as Promise<ApiEnvelope<AlertRecord[]>>,
 
   getById: (alertId: number) =>
-    apiCall(`/alerts/${alertId}`, { method: "GET" }),
+    apiCall<ApiEnvelope<AlertRecord>>(`/alerts/${alertId}`, { method: "GET" }),
 };
 
 /**
  * Health check
  */
 export const healthAPI = {
-  check: () => apiCall("/health", { method: "GET" }),
+  check: () => apiCall<ApiResponse>("/health", { method: "GET" }),
+};
+
+export const monitoringAPI = {
+  check: () =>
+    apiCall("/monitoring/health", { method: "GET" }) as Promise<
+      ApiEnvelope<{ status: "ready" }>
+    >,
+};
+
+export const getMonitoringSocketUrl = () => {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_BACKEND_WS_URL || "http://localhost:5000";
+  const url = new URL("/ws/monitoring", configuredUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 };
 
 /**

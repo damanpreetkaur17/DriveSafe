@@ -3,7 +3,9 @@ const {
   startSession,
   endSession,
   getSessions,
-  getSession
+  getSession,
+  getSessionDetections,
+  getSessionSummary
 } = require("../controllers/sessionController");
 const authMiddleware = require("../middleware/authMiddleware");
 
@@ -23,6 +25,18 @@ router.post("/start", startSession);
  * Get all sessions for current user
  */
 router.get("/", getSessions);
+
+/**
+ * GET /api/sessions/:sessionId/detections
+ * Get persisted telemetry samples and events for a session.
+ */
+router.get("/:sessionId/detections", getSessionDetections);
+
+/**
+ * GET /api/sessions/:sessionId/summary
+ * Get aggregated metrics and a bounded chart series for a session.
+ */
+router.get("/:sessionId/summary", getSessionSummary);
 
 /**
  * GET /api/sessions/:sessionId

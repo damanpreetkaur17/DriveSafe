@@ -1,302 +1,321 @@
 "use client";
 
-import DashboardShell from "@/components/dashboard/DashboardShell";
-import DriverStateIndicator from "@/components/dashboard/DriverStateIndicator";
-import FatigueRiskGauge from "@/components/dashboard/FatigueRiskGauge";
-import MetricCard from "@/components/dashboard/MetricCard";
-import Sparkline from "@/components/dashboard/Sparkline";
-import CameraOverview from "@/components/dashboard/CameraOverview";
-import {
-  getCurrentDriverState,
-  getFatigueRisk,
-  getLiveTelemetry,
-  getTelemetryHistory,
-  getActiveAlert,
-  getFatigueTimeline,
-  getPipelineStatus,
-  getCurrentSession,
-} from "@/lib/mockData";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AlertTriangle, ArrowRight, Clock3, Eye, ShieldCheck } from "lucide-react";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import CameraMonitor from "@/components/dashboard/CameraMonitor";
+import {
+  AlertRecord,
+  DetectionResult,
+  DrivingSession,
+  sessionAPI,
+  alertAPI,
+} from "@/services/api";
+
+interface ChartSample {
+  timestamp: string;
+  has_face: boolean;
+  fatigue_score: number | null;
+}
 
 export default function DashboardOverview() {
-  // Load mock data
-  const driverState = getCurrentDriverState();
-  const fatigueRisk = getFatigueRisk();
-  const telemetry = getLiveTelemetry();
-  const activeAlert = getActiveAlert();
-  const fatigueTimeline = getFatigueTimeline();
-  const pipeline = getPipelineStatus();
-  const session = getCurrentSession();
+  const [sessions, setSessions] = useState<DrivingSession[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
+  const [samples, setSamples] = useState<ChartSample[]>([]);
+  const [detection, setDetection] = useState<DetectionResult | null>(null);
+  const [monitoringSession, setMonitoringSession] = useState<DrivingSession | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([sessionAPI.getAll(), alertAPI.getAll()])
+      .then(async ([sessionResponse, alertResponse]) => {
+        if (!active) return;
+        const sessionList = sessionResponse.data;
+        setSessions(sessionList);
+        setAlerts(alertResponse.data);
+        const activeSessionRecord = sessionList.find(
+          (session) => session.status === "ACTIVE"
+        );
+        setMonitoringSession(activeSessionRecord ?? null);
+        const recent = sessionList[0];
+        if (recent) {
+          const summary = await sessionAPI.getSummary(recent.session_id);
+          if (active) {
+            setSamples(
+              summary.data.samples.map((sample) => ({
+                timestamp: sample.timestamp,
+                has_face: sample.has_face,
+                fatigue_score: sample.fatigue_score,
+              }))
+            );
+          }
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(
+            error instanceof Error ? error.message : "Unable to load dashboard data."
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const activeSession =
+    monitoringSession?.status === "ACTIVE" ? monitoringSession : null;
+  const totalMonitoringMs = sessions.reduce((total, session) => {
+    const end = session.end_time
+      ? new Date(session.end_time).getTime()
+      : new Date(session.start_time).getTime();
+    return total + Math.max(0, end - new Date(session.start_time).getTime());
+  }, 0) + (activeSession ? elapsedSeconds * 1000 : 0);
+  const chartPoints = useMemo(() => {
+    const scored = samples.filter(
+      (sample) => sample.has_face && sample.fatigue_score !== null
+    );
+    if (scored.length < 2) return "";
+    return scored
+      .map(
+        (sample, index) =>
+          `${(index / (scored.length - 1)) * 100},${100 - (sample.fatigue_score ?? 0)}`
+      )
+      .join(" ");
+  }, [samples]);
+  const latestSummary = samples.at(-1);
+  const eventCount = (name: string) =>
+    alerts.filter(
+      (alert) =>
+        alert.event.session.session_id === sessions[0]?.session_id &&
+        alert.event.event_type.event_name === name
+    ).length;
 
   return (
     <DashboardShell>
-      <div className="min-h-screen p-6">
+      <main className="min-h-screen space-y-6 p-4 pt-6 sm:p-6">
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/60">
+              Driver safety
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold text-white">Monitoring overview</h1>
+            <p className="mt-1 text-sm text-white/50">
+              Live camera analysis and recorded session insights.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/sessions"
+            className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white"
+          >
+            Session history <ArrowRight size={15} />
+          </Link>
+        </header>
 
-        {/* ====================================================== */}
-        {/* MAIN GRID                                              */}
-        {/* ====================================================== */}
+        {loadError && (
+          <div role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+            {loadError}
+          </div>
+        )}
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <OverviewCard
+            icon={<ShieldCheck size={17} />}
+            label="Attention"
+            value={detection?.attentionStatus ?? "No live signal"}
+            accent={detection?.attentionStatus === "Inattentive" ? "amber" : "green"}
+          />
+          <OverviewCard
+            icon={<Eye size={17} />}
+            label="Eye aspect ratio"
+            value={detection?.ear?.toFixed(3) ?? "—"}
+          />
+          <OverviewCard
+            icon={<Clock3 size={17} />}
+            label="Monitoring time"
+            value={formatHours(totalMonitoringMs)}
+          />
+          <OverviewCard
+            icon={<AlertTriangle size={17} />}
+            label="Recorded alerts"
+            value={loading ? "…" : alerts.length}
+            accent={alerts.length > 0 ? "amber" : "green"}
+          />
+        </section>
 
-          {/* ================================================== */}
-          {/* LEFT COLUMN â€” Camera & State                       */}
-          {/* ================================================== */}
+        <section className="rounded-2xl border border-white/10 bg-[#080b10] p-4 sm:p-6">
+          <CameraMonitor
+            onDetectionUpdate={(result) => {
+              setDetection(result);
+              if (result?.hasFace && result.fatigueScore !== null) {
+                setSamples((current) => [
+                  ...current,
+                  {
+                    timestamp: result.timestamp,
+                    has_face: true,
+                    fatigue_score: result.fatigueScore,
+                  },
+                ].slice(-600));
+              }
+            }}
+            onSessionChange={(session) => {
+              if (session?.status === "ACTIVE") {
+                setSamples([]);
+                setElapsedSeconds(0);
+              }
+              setMonitoringSession(session);
+              if (session) {
+                setSessions((current) => [
+                  session,
+                  ...current.filter((item) => item.session_id !== session.session_id),
+                ]);
+              }
+            }}
+            onElapsedSeconds={setElapsedSeconds}
+          />
+        </section>
 
-          <div className="space-y-6 lg:col-span-2">
-
-            {/* Live Camera */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <div className="mb-4">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
-                  Live Camera
-                </h2>
-                <p className="mt-1 text-xs text-white/40">Real-time facial monitoring</p>
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
+          <div className="rounded-2xl border border-white/10 bg-[#080b10] p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-white">Recent signal risk</h2>
+                <p className="mt-1 text-xs text-white/45">
+                  Latest session samples · rule-based score, 0–100
+                </p>
               </div>
-
-              {/* Camera Overview Component */}
-              <CameraOverview />
+              <Link
+                href="/dashboard/analytics"
+                className="text-xs text-white/65 hover:text-white"
+              >
+                Analytics
+              </Link>
             </div>
-
-            {/* Fatigue Timeline */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
-                    Fatigue Evolution
-                  </h2>
-                  <p className="mt-1 text-xs text-white/40">Last 60 minutes</p>
-                </div>
-                <Link
-                  href="/dashboard/analytics"
-                  className="text-xs text-white/50 transition hover:text-white"
+            {chartPoints ? (
+              <div className="mt-5 h-36 rounded-lg border border-white/5 bg-black/20 p-3">
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  className="h-full w-full"
+                  role="img"
+                  aria-label="Fatigue signal score from recorded session samples"
                 >
-                  <span
-                    style={{ fontFamily: "'Rajdhani', sans-serif" }}
-                    className="text-[10px] font-semibold uppercase tracking-[0.15em]"
-                  >
-                    View Full Analytics â†’
-                  </span>
-                </Link>
-              </div>
-
-              {/* Simple line chart visualization */}
-              <div className="relative h-48 rounded-lg border border-white/5 bg-black/20 p-4">
-                <svg className="h-full w-full" viewBox="0 0 600 150" preserveAspectRatio="none">
-                  {/* Grid lines */}
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <line
-                      key={i}
-                      x1="0"
-                      y1={i * 37.5}
-                      x2="600"
-                      y2={i * 37.5}
-                      stroke="rgba(255, 255, 255, 0.05)"
-                      strokeWidth="1"
-                    />
-                  ))}
-
-                  {/* Fatigue line */}
+                  <line x1="0" y1="0" x2="100" y2="0" stroke="#ffffff12" />
+                  <line x1="0" y1="50" x2="100" y2="50" stroke="#ffffff12" />
+                  <line x1="0" y1="100" x2="100" y2="100" stroke="#ffffff12" />
                   <polyline
-                    points={fatigueTimeline
-                      .map((point, i) => `${(i / (fatigueTimeline.length - 1)) * 600},${150 - (point.risk / 100) * 150}`)
-                      .join(' ')}
+                    points={chartPoints}
                     fill="none"
-                    stroke="rgb(74, 222, 128)"
-                    strokeWidth="2"
-                    className="transition-all duration-300"
+                    stroke="#9ca3af"
+                    strokeWidth="1.5"
+                    vectorEffect="non-scaling-stroke"
                   />
-
-                  {/* Area fill */}
-                  <polygon
-                    points={`0,150 ${fatigueTimeline
-                      .map((point, i) => `${(i / (fatigueTimeline.length - 1)) * 600},${150 - (point.risk / 100) * 150}`)
-                      .join(' ')} 600,150`}
-                    fill="url(#gradient)"
-                    opacity="0.2"
-                  />
-
-                  <defs>
-                    <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="rgb(74, 222, 128)" />
-                      <stop offset="100%" stopColor="rgb(74, 222, 128)" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
                 </svg>
-
-                {/* Y-axis labels */}
-                <div className="absolute left-0 top-0 flex h-full flex-col justify-between py-4 text-[10px] text-white/30">
-                  <span>100%</span>
-                  <span>75%</span>
-                  <span>50%</span>
-                  <span>25%</span>
-                  <span>0%</span>
-                </div>
               </div>
-            </div>
+            ) : (
+              <EmptyState
+                text={
+                  activeSession
+                    ? "Recorded signal samples will appear as monitoring continues."
+                    : "No recorded signal trend yet. Start monitoring to collect session data."
+                }
+              />
+            )}
           </div>
 
-          {/* ================================================== */}
-          {/* RIGHT COLUMN â€” Metrics & Status                    */}
-          {/* ================================================== */}
-
-          <div className="space-y-6">
-
-            {/* Driver State */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-                Driver State
-              </h2>
-              <div className="flex justify-center">
-                <DriverStateIndicator
-                  state={driverState.state}
-                  confidence={driverState.confidence}
-                  size="md"
-                />
-              </div>
-            </div>
-
-            {/* Fatigue Risk */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-                Fatigue Risk
-              </h2>
-              <div className="flex justify-center">
-                <FatigueRiskGauge risk={fatigueRisk} size="md" />
-              </div>
-            </div>
-
-            {/* Active Alerts */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
-                  Active Alerts
-                </h2>
-                <Link href="/dashboard/alerts" className="text-xs text-white/50 hover:text-white">
-                  <span
-                    style={{ fontFamily: "'Rajdhani', sans-serif" }}
-                    className="text-[10px] font-semibold uppercase tracking-[0.15em]"
-                  >
-                    View All â†’
+          <div className="rounded-2xl border border-white/10 bg-[#080b10] p-5">
+            <h2 className="text-sm font-semibold text-white">Latest recorded session</h2>
+            {loading ? (
+              <div className="mt-4 h-24 animate-pulse rounded-lg bg-white/5" />
+            ) : sessions.length === 0 ? (
+              <EmptyState text="No monitoring sessions recorded yet." />
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/50">Session status</span>
+                  <span className="text-white">{sessions[0].status}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/50">Started</span>
+                  <span className="text-white">
+                    {new Date(sessions[0].start_time).toLocaleString()}
                   </span>
-                </Link>
-              </div>
-
-              {activeAlert ? (
-                <div className={`rounded-lg border p-4 ${
-                  activeAlert.severity === 'CRITICAL'
-                    ? 'border-red-500/30 bg-red-500/10'
-                    : 'border-amber-500/30 bg-amber-500/10'
-                }`}>
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle
-                      size={20}
-                      className={activeAlert.severity === 'CRITICAL' ? 'text-red-400' : 'text-amber-400'}
-                    />
-                    <div className="flex-1">
-                      <div className={`text-sm font-semibold ${
-                        activeAlert.severity === 'CRITICAL' ? 'text-red-400' : 'text-amber-400'
-                      }`}>
-                        {activeAlert.type}
-                      </div>
-                      <p className="mt-1 text-xs text-white/70">{activeAlert.message}</p>
-                      {activeAlert.metric && (
-                        <div className="mt-2 font-mono text-xs text-white/50">{activeAlert.metric}</div>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/50">
-                  <CheckCircle size={16} className="text-green-400" />
-                  No active alerts
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/50">Avg. signal risk</span>
+                  <span className="text-white">
+                    {sessions[0].average_fatigue_score === null ||
+                    sessions[0].average_fatigue_score === undefined
+                      ? "—"
+                      : `${Math.round(sessions[0].average_fatigue_score)}/100`}
+                  </span>
                 </div>
-              )}
-            </div>
-
-            {/* Session Snapshot */}
-            <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-                Current Session
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/50">Duration</span>
-                  <span className="font-mono text-white">{Math.floor(session.duration)} min</span>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/50">Drowsiness / eye events</span>
+                  <span className="text-white">{eventCount("EYE_CLOSURE")}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/50">Time Alert</span>
-                  <span className="font-mono text-white">{session.timeAlert}%</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/50">Warnings</span>
-                  <span className="font-mono text-white">{session.warnings}</span>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/50">Yawn alerts</span>
+                  <span className="text-white">{eventCount("YAWNING")}</span>
                 </div>
               </div>
-            </div>
+            )}
+            {latestSummary && (
+              <p className="mt-4 text-[11px] text-white/35">
+                Latest sample: {new Date(latestSummary.timestamp).toLocaleTimeString()}
+              </p>
+            )}
           </div>
-        </div>
-
-        {/* ====================================================== */}
-        {/* BOTTOM ROW â€” Telemetry & Pipeline                      */}
-        {/* ====================================================== */}
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-
-          {/* Live Telemetry */}
-          <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-              Live Telemetry
-            </h2>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <MetricCard label="EAR" value={telemetry.ear.toFixed(2)} size="sm">
-                <Sparkline data={getTelemetryHistory('ear')} color="rgba(74, 222, 128, 0.5)" height={24} />
-              </MetricCard>
-              <MetricCard label="MAR" value={telemetry.mar.toFixed(2)} size="sm">
-                <Sparkline data={getTelemetryHistory('mar')} color="rgba(74, 222, 128, 0.5)" height={24} />
-              </MetricCard>
-              <MetricCard label="BLINK RATE" value={telemetry.blinkRate} unit="/min" size="sm">
-                <Sparkline data={getTelemetryHistory('blinkRate')} color="rgba(74, 222, 128, 0.5)" height={24} />
-              </MetricCard>
-              <MetricCard label="EYE CLOSURE" value={telemetry.eyeClosure.toFixed(2)} unit="s" size="sm">
-                <Sparkline data={getTelemetryHistory('eyeClosure')} color="rgba(74, 222, 128, 0.5)" height={24} />
-              </MetricCard>
-              <MetricCard label="YAWNING" value={telemetry.yawning} size="sm">
-                <Sparkline data={getTelemetryHistory('yawning')} color="rgba(74, 222, 128, 0.5)" height={24} />
-              </MetricCard>
-            </div>
-          </div>
-
-          {/* AI Pipeline */}
-          <div className="rounded-xl border border-white/10 bg-[#07090E] p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">
-              AI Pipeline
-            </h2>
-            <div className="flex items-center justify-between">
-              {pipeline.map((stage, index) => (
-                <div key={stage.stage} className="flex items-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-full border ${
-                      stage.status === 'ACTIVE' ? 'border-green-500/50 bg-green-500/20' : 'border-white/20 bg-white/5'
-                    }`}>
-                      <div className={`h-2 w-2 rounded-full ${
-                        stage.status === 'ACTIVE' ? 'bg-green-400' : 'bg-white/30'
-                      }`} />
-                    </div>
-                    <span className="text-[9px] text-white/40">{stage.stage}</span>
-                    {stage.latency && (
-                      <span className="text-[8px] text-white/30">{stage.latency}ms</span>
-                    )}
-                  </div>
-                  {index < pipeline.length - 1 && (
-                    <div className="mx-2 h-px w-4 bg-white/20" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+        </section>
+      </main>
     </DashboardShell>
   );
+}
+
+function OverviewCard({
+  icon,
+  label,
+  value,
+  accent = "neutral",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  accent?: "neutral" | "green" | "amber";
+}) {
+  const accentClass =
+    accent === "amber"
+      ? "text-amber-300"
+      : accent === "green"
+        ? "text-white/70"
+        : "text-white";
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#080b10] p-4">
+      <div className="flex items-center gap-2 text-xs text-white/45">
+        <span className="text-white/65">{icon}</span>
+        {label}
+      </div>
+      <p className={`mt-3 text-lg font-semibold ${accentClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="mt-5 rounded-lg border border-dashed border-white/10 p-5 text-center text-xs text-white/40">
+      {text}
+    </div>
+  );
+}
+
+function formatHours(milliseconds: number) {
+  const minutes = Math.floor(milliseconds / 60000);
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }

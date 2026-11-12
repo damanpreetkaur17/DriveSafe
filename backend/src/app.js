@@ -10,6 +10,7 @@ const emergencyRoutes = require("./routes/emergencyRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
 const fatigueRoutes = require("./routes/fatigueRoutes");
 const alertRoutes = require("./routes/alertRoutes");
+const monitoringRoutes = require("./routes/monitoringRoutes");
 
 const app = express();
 
@@ -29,6 +30,7 @@ const allowedOrigins = [
     .map((o) => o.trim())
     .filter(Boolean),
 ];
+app.locals.allowedOrigins = allowedOrigins;
 
 app.use(
   cors({
@@ -66,6 +68,7 @@ app.use("/api/emergency-contacts", emergencyRoutes);
 app.use("/api/sessions", sessionRoutes);
 app.use("/api/fatigue-events", fatigueRoutes);
 app.use("/api/alerts", alertRoutes);
+app.use("/api/monitoring", monitoringRoutes);
 
 // ── Error handlers ────────────────────────────────────────────────────────────
 

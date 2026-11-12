@@ -132,8 +132,12 @@ export default function CompleteProfilePage() {
       setTimeout(() => {
         router.push("/dashboard/profile");
       }, 1000);
-    } catch (err: any) {
-      setError(err.message || "Failed to complete profile setup");
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to complete profile setup"
+      );
     } finally {
       setIsSubmitting(false);
     }
